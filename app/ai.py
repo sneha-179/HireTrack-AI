@@ -1,9 +1,8 @@
-import google.generativeai as genai
+from groq import Groq
 import fitz
 import os
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-2.0-flash")
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
 def parse_resume(file_bytes):
@@ -28,8 +27,11 @@ def get_match_score(resume_text, job_description):
     MATCH_SCORE: <number between 0 and 100>
     ANALYSIS: <detailed analysis in 3-4 lines>
     """
-    response = model.generate_content(prompt)
-    return response.text
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
 
 
 def get_skill_gap(resume_text, job_description):
@@ -47,5 +49,8 @@ def get_skill_gap(resume_text, job_description):
     MISSING_SKILLS: <comma separated list of missing skills>
     RECOMMENDATIONS: <3-4 actionable recommendations to bridge the gap>
     """
-    response = model.generate_content(prompt)
-    return response.text
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content

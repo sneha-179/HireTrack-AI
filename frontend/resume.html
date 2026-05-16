@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HireTrack AI - Resume & AI</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; background: #f5f5f5; }
+    nav { background: #2563eb; padding: 15px 30px; color: white; display: flex; justify-content: space-between; align-items: center; }
+    nav h1 { font-size: 18px; }
+    nav div { display: flex; gap: 15px; align-items: center; }
+    nav a { color: white; text-decoration: none; font-size: 14px; cursor: pointer; }
+    nav button { background: white; color: #2563eb; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+    .section { background: white; border-radius: 8px; padding: 25px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .section h2 { margin-bottom: 15px; font-size: 16px; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+    input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; margin-bottom: 10px; }
+    textarea { resize: vertical; height: 100px; }
+    .btn { padding: 8px 18px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-danger { background: #ef4444; color: white; }
+    .msg { padding: 10px; border-radius: 4px; margin-bottom: 10px; font-size: 13px; }
+    .msg-success { background: #dcfce7; color: #166534; }
+    .msg-error { background: #fee2e2; color: #991b1b; }
+    .result-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 15px; margin-top: 15px; font-size: 13px; line-height: 1.6; }
+    .score { font-size: 36px; font-weight: bold; color: #2563eb; text-align: center; margin: 10px 0; }
+    .label { font-size: 12px; color: #666; margin-bottom: 5px; font-weight: bold; text-transform: uppercase; }
+    .resume-info { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 15px; font-size: 13px; }
+    .loading { color: #666; font-size: 13px; font-style: italic; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <h1>HireTrack AI</h1>
+  <div>
+    <a href="dashboard.html">Dashboard</a>
+    <button onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Resume Upload -->
+  <div class="section">
+    <h2>Resume Management</h2>
+    <div id="resume-msg"></div>
+    <div id="current-resume"></div>
+    <br>
+    <p class="label">Upload New Resume (PDF only)</p>
+    <input type="file" id="resume-file" accept=".pdf" />
+    <button class="btn btn-primary" onclick="uploadResume()">Upload Resume</button>
+  </div>
+
+  <!-- AI Match Score -->
+  <div class="section">
+    <h2>AI Resume-JD Match Score</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:15px;">Select an application and your resume to get an AI-powered match score</p>
+    <div id="ai-msg"></div>
+    <p class="label">Select Application</p>
+    <select id="app-select">
+      <option value="">-- Select Application --</option>
+    </select>
+    <p class="label">Select Resume</p>
+    <select id="resume-select">
+      <option value="">-- Select Resume --</option>
+    </select>
+    <br>
+    <button class="btn btn-primary" onclick="getMatchScore()">Get Match Score</button>
+    <div id="match-result"></div>
+  </div>
+
+  <!-- Skill Gap Analysis -->
+  <div class="section">
+    <h2>Skill Gap Analysis</h2>
+    <p style="font-size:13px;color:#666;margin-bottom:15px;">Find out what skills you're missing for a specific job</p>
+    <div id="gap-msg"></div>
+    <p class="label">Select Application</p>
+    <select id="gap-app-select">
+      <option value="">-- Select Application --</option>
+    </select>
+    <p class="label">Select Resume</p>
+    <select id="gap-resume-select">
+      <option value="">-- Select Resume --</option>
+    </select>
+    <br>
+    <button class="btn btn-primary" onclick="getSkillGap()">Analyze Skill Gap</button>
+    <div id="gap-result"></div>
+  </div>
+
+</div>
+
+<script>
+  const API = "http://localhost:8000";
+  const token = localStorage.getItem("token");
+
+  if (!token) window.location.href = "login.html";
+
+  function headers() {
+    return { "Authorization": `Bearer ${token}` };
+  }
+
+  function jsonHeaders() {
+    return { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
+  }
+
+  function logout() {
+    localStorage.removeItem("token");
+    window.location.href = "login.html";
+  }
+
+  async function loadCurrentResume() {
+    const res = await fetch(`${API}/resumes/`, { headers: headers() });
+    const div = document.getElementById("current-resume");
+    if (res.ok) {
+      const data = await res.json();
+      div.innerHTML = `
+        <div class="resume-info">
+          <p class="label">Current Resume</p>
+          <p>📄 Resume ID: ${data.resume_id}</p>
+          <p>Uploaded: ${new Date(data.uploaded_at).toLocaleDateString()}</p>
+          <br>
+          <button class="btn btn-danger" onclick="deleteResume(${data.resume_id})">Delete Resume</button>
+        </div>`;
+      document.getElementById("resume-select").innerHTML = `<option value="${data.resume_id}">Resume #${data.resume_id} (uploaded ${new Date(data.uploaded_at).toLocaleDateString()})</option>`;
+      document.getElementById("gap-resume-select").innerHTML = `<option value="${data.resume_id}">Resume #${data.resume_id} (uploaded ${new Date(data.uploaded_at).toLocaleDateString()})</option>`;
+    } else {
+      div.innerHTML = `<p style="color:#999;font-size:13px;">No resume uploaded yet</p>`;
+    }
+  }
+
+  async function uploadResume() {
+    const file = document.getElementById("resume-file").files[0];
+    const msg = document.getElementById("resume-msg");
+    if (!file) { msg.innerHTML = `<div class="msg msg-error">Please select a PDF file</div>`; return; }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    msg.innerHTML = `<div class="msg">Uploading and parsing resume...</div>`;
+
+    const res = await fetch(`${API}/resumes/upload`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}` },
+      body: formData
+    });
+
+    if (res.ok) {
+      msg.innerHTML = `<div class="msg msg-success">Resume uploaded and parsed successfully</div>`;
+      loadCurrentResume();
+    } else {
+      const data = await res.json();
+      msg.innerHTML = `<div class="msg msg-error">${data.detail}</div>`;
+    }
+  }
+
+  async function deleteResume(id) {
+    if (!confirm("Delete your resume?")) return;
+    await fetch(`${API}/resumes/${id}`, { method: "DELETE", headers: headers() });
+    loadCurrentResume();
+  }
+
+  async function loadApplications() {
+    const res = await fetch(`${API}/applications/`, { headers: headers() });
+    const data = await res.json();
+    if (res.ok) {
+      const options = data.map(a => `<option value="${a.id}">${a.company} - ${a.role}</option>`).join("");
+      document.getElementById("app-select").innerHTML = `<option value="">-- Select Application --</option>${options}`;
+      document.getElementById("gap-app-select").innerHTML = `<option value="">-- Select Application --</option>${options}`;
+    }
+  }
+
+  async function getMatchScore() {
+    const appId = document.getElementById("app-select").value;
+    const resumeId = document.getElementById("resume-select").value;
+    const msg = document.getElementById("ai-msg");
+    const result = document.getElementById("match-result");
+
+    if (!appId || !resumeId) { msg.innerHTML = `<div class="msg msg-error">Please select both application and resume</div>`; return; }
+
+    msg.innerHTML = `<div class="msg"><span class="loading">Analyzing with Gemini AI... this may take a few seconds</span></div>`;
+    result.innerHTML = "";
+
+    const res = await fetch(`${API}/ai/match/${appId}/${resumeId}`, { method: "POST", headers: jsonHeaders() });
+    const data = await res.json();
+
+    if (res.ok) {
+      msg.innerHTML = "";
+      result.innerHTML = `
+        <div class="result-box">
+          <p class="label">Match Score</p>
+          <div class="score">${data.match_score}%</div>
+          <p class="label">Analysis</p>
+          <p>${data.analysis}</p>
+        </div>`;
+    } else {
+      msg.innerHTML = `<div class="msg msg-error">${data.detail || "AI service unavailable. Check Gemini API key."}</div>`;
+    }
+  }
+
+  async function getSkillGap() {
+    const appId = document.getElementById("gap-app-select").value;
+    const resumeId = document.getElementById("gap-resume-select").value;
+    const msg = document.getElementById("gap-msg");
+    const result = document.getElementById("gap-result");
+
+    if (!appId || !resumeId) { msg.innerHTML = `<div class="msg msg-error">Please select both application and resume</div>`; return; }
+
+    msg.innerHTML = `<div class="msg"><span class="loading">Analyzing skill gaps with Gemini AI...</span></div>`;
+    result.innerHTML = "";
+
+    const res = await fetch(`${API}/ai/skillgap/${appId}/${resumeId}`, { method: "POST", headers: jsonHeaders() });
+    const data = await res.json();
+
+    if (res.ok) {
+      msg.innerHTML = "";
+      result.innerHTML = `
+        <div class="result-box">
+          <p class="label">Present Skills</p>
+          <p style="color:#166534;">${data.present_skills}</p>
+          <br>
+          <p class="label">Missing Skills</p>
+          <p style="color:#991b1b;">${data.missing_skills}</p>
+          <br>
+          <p class="label">Recommendations</p>
+          <p>${data.recommendations}</p>
+        </div>`;
+    } else {
+      msg.innerHTML = `<div class="msg msg-error">${data.detail || "AI service unavailable. Check Gemini API key."}</div>`;
+    }
+  }
+
+  loadCurrentResume();
+  loadApplications();
+</script>
+</body>
+</html>
